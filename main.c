@@ -71,9 +71,22 @@ long loadFile(char **buffer, char *filename) {
   return length;
 }
 
-int main(void) {
-  char *buffer;
+int main(int argc, char *argv[]) {
+
+  // Parsing command line args
   char *filename = "test.ar";
+
+  if (argc == 2) {
+    filename = argv[1];
+  } else if (argc > 2) {
+    printf("Too much arguments. Syntax:\n ./main.bin <filename>\n");
+    return 1;
+  } else if (argc < 2) {
+    printf("Too few arguments. Syntax:\n ./main.bin <filename>\n");
+    return 1;
+  }
+
+  char *buffer;
   long length;
   FILE *f = fopen(filename, "rb");
 
@@ -89,6 +102,8 @@ int main(void) {
       fread(buffer, 1, length, f);
     }
     fclose(f);
+  } else {
+    return 1;
   }
   if (!buffer) {
     printf("Got here\n");
