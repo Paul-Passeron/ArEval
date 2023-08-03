@@ -22,7 +22,8 @@ typedef struct {
   uint16_t num;
 } LEX_Token;
 
-void printtype(LEX_TokenType type) {
+void printtype(LEX_Token tok) {
+  LEX_TokenType type = tok.type;
   if (type == PLUS) {
     printf("PLUS\n");
     return;
@@ -40,10 +41,16 @@ void printtype(LEX_TokenType type) {
     return;
   }
   if (type == NUMBER) {
-    printf("NUMBER\n");
+    printf("NUMBER: %d\n", tok.num);
     return;
   }
-  return;
+}
+
+void printProg(LEX_Token *toks, int length) {
+  int8_t i;
+  for (i = 0; i < length; i++) {
+    printtype(toks[i]);
+  }
 }
 
 uint64_t parseNum(char *num, uint8_t length) {
@@ -108,22 +115,32 @@ int main(void) {
         temp_tok.num = number;
         temp_tok.type = NUMBER;
         tokens[current_token] = temp_tok;
+        current_token++;
+        flag = LEX_FLAG_DEFAULT;
         if (*buffer == '+') {
           flag = LEX_FLAG_OP;
           temp_tok.num = -1;
           temp_tok.type = PLUS;
+          tokens[current_token] = temp_tok;
+          current_token++;
         } else if (*buffer == '-') {
           flag = LEX_FLAG_OP;
           temp_tok.num = -1;
           temp_tok.type = MINUS;
+          tokens[current_token] = temp_tok;
+          current_token++;
         } else if (*buffer == '*') {
           flag = LEX_FLAG_OP;
           temp_tok.num = -1;
           temp_tok.type = MULT;
+          tokens[current_token] = temp_tok;
+          current_token++;
         } else if (*buffer == '/') {
           flag = LEX_FLAG_OP;
           temp_tok.num = -1;
           temp_tok.type = DIV;
+          tokens[current_token] = temp_tok;
+          current_token++;
         }
       }
       break;
@@ -132,18 +149,45 @@ int main(void) {
       i = 0;
       if (*buffer == ' ' || *buffer == '\n') {
         flag = LEX_FLAG_DEFAULT;
+      } else if ('0' <= *buffer && *buffer <= '9') {
+        nume[i] = *buffer;
+        i++;
+      } else {
+        printf("Unrecognized operator!\n");
       }
       break;
 
     case LEX_FLAG_DEFAULT:
+      i = 0;
       if ('0' <= *buffer && *buffer <= '9') {
         flag = LEX_FLAG_NUM;
         nume[i] = *buffer;
         i++;
+      } else if (*buffer == '+') {
+        flag = LEX_FLAG_OP;
+        temp_tok.num = -1;
+        temp_tok.type = PLUS;
+        tokens[current_token] = temp_tok;
+        current_token++;
+      } else if (*buffer == '-') {
+        flag = LEX_FLAG_OP;
+        temp_tok.num = -1;
+        temp_tok.type = MINUS;
+        tokens[current_token] = temp_tok;
+        current_token++;
+      } else if (*buffer == '*') {
+        flag = LEX_FLAG_OP;
+        temp_tok.num = -1;
+        temp_tok.type = MULT;
+        tokens[current_token] = temp_tok;
+        current_token++;
+      } else if (*buffer == '/') {
+        flag = LEX_FLAG_OP;
+        temp_tok.num = -1;
+        temp_tok.type = DIV;
+        tokens[current_token] = temp_tok;
+        current_token++;
       }
-      if (*buffer == '+') {
-      }
-
       break;
 
     default:
@@ -153,6 +197,11 @@ int main(void) {
 
     ++buffer;
   }
-  free(start);
+  printf("-------------------------------\n");
+  printProg(tokens, current_token);
+  printf("-------------------------------\n");
+
+  // free(start);
+
   return 0;
 }
