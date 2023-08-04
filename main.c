@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 #define MAX_NUM_SIZE 100
-
+#define MAX_STACK_SIZE 100
 #define MAX_PROG_SIZE 100
 
 #define LEX_FLAG_DEFAULT 0
@@ -22,13 +22,13 @@ typedef enum {
   DIV,
   NUMBER,
   LPAREN,
-  NOTYPE,
   RPAREN,
+  NOTYPE,
 } LEX_TokenType;
 
 typedef struct {
   LEX_TokenType type;
-  uint16_t num;
+  int num;
 } LEX_Token;
 
 void printtype(LEX_Token tok) {
@@ -95,14 +95,14 @@ void fprinttype(LEX_Token tok, FILE *f) {
 
 void printProg(LEX_Token *toks, int length) {
   int8_t i;
-  for (i = 0; i < length; i++) {
+  for (i = 0; i < length && i < MAX_PROG_SIZE; i++) {
     printtype(toks[i]);
   }
 }
 
 void fprintProg(LEX_Token *toks, int length, FILE *f) {
   int8_t i;
-  for (i = 0; i < length; i++) {
+  for (i = 0; i < length && i < MAX_PROG_SIZE; i++) {
     fprinttype(toks[i], f);
   }
 }
@@ -119,9 +119,138 @@ uint64_t parseNum(char *num, uint8_t length) {
   return res;
 }
 
-int main(int argc, char *argv[]) {
+bool isOperator(LEX_Token tok) {
+  LEX_TokenType type = tok.type;
+  if (type == NUMBER || type == LPAREN || type == RPAREN || type == NOTYPE) {
+    return false;
+  }
+  return true;
+}
 
-  // Parsing command line args
+typedef struct {
+  int length;
+  LEX_Token toks[MAX_STACK_SIZE];
+} LEX_TokenStack;
+
+bool LEX_Push(LEX_TokenStack *stack, LEX_Token tok) {
+  if (stack->length == MAX_STACK_SIZE) {
+    return false;
+  }
+  stack->toks[stack->length] = tok;
+  stack->length++;
+  return true;
+}
+
+LEX_Token LEX_Pop(LEX_TokenStack *stack) {
+  if (stack->length == 0) {
+    // Throw some sort of error maybe ? Or return an invalid token
+    return (LEX_Token){.type = NOTYPE, .num = -1};
+  }
+  stack->length--;
+  return stack->toks[stack->length];
+}
+
+LEX_Token LEX_Peek(LEX_TokenStack *stack) {
+  if (stack->length == 0) {
+    // Throw some sort of error maybe ? Or return an invalid token
+    return (LEX_Token){.type = NOTYPE, .num = -1};
+  }
+  return stack->toks[stack->length - 1];
+}
+
+int getPrecedence(LEX_Token tok) {
+
+  if (tok.type == PLUS || tok.type == MINUS) {
+    return 12;
+  } else if (tok.type == MULT || tok.type == DIV) {
+    return 13;
+  } else if (tok.type == LPAREN || tok.type == RPAREN) {
+    return 15;
+  }
+  return 0;
+}
+
+#define prec getPrecedence
+
+void infixToRPN(LEX_Token *dst, LEX_Token *toks, int *length, int or_length) {
+  int i = 0;
+  int j = 0;
+  LEX_TokenStack stack;
+  stack.length = 0;
+  while (i < or_length) {
+
+    if (toks[i].type == NOTYPE) {
+      break;
+    } else if (toks[i].type == NUMBER) {
+      dst[j] = toks[i];
+      j++;
+    } else if (toks[i].type == LPAREN) {
+      LEX_Push(&stack, toks[i]);
+    } else if (toks[i].type == RPAREN) {
+      while (LEX_Peek(&stack).type != LPAREN && stack.length > 0) {
+        dst[j] = LEX_Pop(&stack);
+        j++;
+      }
+      LEX_Pop(&stack);
+    } else if (isOperator(toks[i])) {
+      if (LEX_Peek(&stack).type == LPAREN) {
+        LEX_Push(&stack, toks[i]);
+
+      } else {
+        while (prec(LEX_Peek(&stack)) > prec(toks[i]) && stack.length > 0) {
+          dst[j] = LEX_Pop(&stack);
+          j++;
+        }
+        LEX_Push(&stack, toks[i]);
+      }
+    }
+    ++i;
+  }
+  while (stack.length > 0) {
+    dst[j] = LEX_Pop(&stack);
+    j++;
+  }
+  *length = j;
+}
+
+int RPNToRes(LEX_Token *toks, int length) {
+
+  LEX_TokenStack stack;
+  stack.length = 0;
+  for (int i = 0; i < length; i++) {
+    LEX_Token tok = toks[i];
+    if (!isOperator(tok)) {
+      LEX_Push(&stack, tok);
+    } else if (tok.type == PLUS) {
+      LEX_Token toka = LEX_Pop(&stack);
+      LEX_Token tokb = LEX_Pop(&stack);
+      int n = toka.num + tokb.num;
+      LEX_Token tokc = (LEX_Token){.type = NUMBER, .num = toka.num + tokb.num};
+      LEX_Push(&stack, tokc);
+    } else if (tok.type == MINUS) {
+      LEX_Token toka = LEX_Pop(&stack);
+      LEX_Token tokb = LEX_Pop(&stack);
+      int n = toka.num + tokb.num;
+      LEX_Token tokc = (LEX_Token){.type = NUMBER, .num = toka.num - tokb.num};
+      LEX_Push(&stack, tokc);
+    } else if (tok.type == DIV) {
+      LEX_Token tokb = LEX_Pop(&stack);
+      LEX_Token toka = LEX_Pop(&stack);
+      int n = toka.num + tokb.num;
+      LEX_Token tokc = (LEX_Token){.type = NUMBER, .num = toka.num / tokb.num};
+      LEX_Push(&stack, tokc);
+    } else if (tok.type == MULT) {
+      LEX_Token toka = LEX_Pop(&stack);
+      LEX_Token tokb = LEX_Pop(&stack);
+      int n = toka.num + tokb.num;
+      LEX_Token tokc = (LEX_Token){.type = NUMBER, .num = toka.num * tokb.num};
+      LEX_Push(&stack, tokc);
+    }
+  }
+  return LEX_Pop(&stack).num;
+}
+
+int main(int argc, char *argv[]) {
   if (argc == 2 || argc == 3) {
     char *filename = argv[1];
 
@@ -136,7 +265,7 @@ int main(int argc, char *argv[]) {
       length = ftell(f);
       fseek(f, 0, SEEK_SET);
 
-      buffer = malloc(length + 1); // Append a newline char at teh eof.
+      buffer = (char *)malloc(length + 1);
       buffer[length] = '\n';
 
       if (buffer) {
@@ -144,7 +273,7 @@ int main(int argc, char *argv[]) {
       }
       fclose(f);
     } else {
-      // printf("Unable to read input file! %s\n", filename);
+      printf("Unable to read input file! %s\n", filename);
       return 1;
     }
     if (!buffer) {
@@ -314,12 +443,18 @@ int main(int argc, char *argv[]) {
 
       ++buffer;
     }
+    LEX_Token rpnTokens[MAX_PROG_SIZE];
+    for (size_t i = 0; i < MAX_PROG_SIZE; ++i) {
+      rpnTokens[i] = (LEX_Token){.type = NOTYPE, .num = -1};
+    }
+    int length_rpn;
+    infixToRPN(rpnTokens, tokens, &length_rpn, current_token);
+
     if (argc == 3) {
       FILE *fout = fopen(argv[2], "w");
       if (fout) {
-
         fprintf(fout, "-------------------------------\n");
-        fprintProg(tokens, current_token, fout);
+        fprintProg(rpnTokens, length_rpn, fout);
         fprintf(fout, "-------------------------------\n");
       } else {
         printf("Unable to find outpur file %s!\n", argv[2]);
@@ -327,7 +462,9 @@ int main(int argc, char *argv[]) {
       fclose(fout);
     } else {
       printf("-------------------------------\n");
-      printProg(tokens, current_token);
+      printProg(rpnTokens, length_rpn);
+      int result = RPNToRes(rpnTokens, length_rpn);
+      printf("RESULTAT: %d", result);
       printf("-------------------------------\n");
       printf("%d", current_token);
     }
