@@ -31,6 +31,29 @@ typedef struct {
   int num;
 } LEX_Token;
 
+char *readFile(int *length, char *filename) {
+  char *buffer;
+  FILE *f = fopen(filename, "rb");
+  if (f) {
+    fseek(f, 0, SEEK_END);
+    *length = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    buffer = (char *)malloc(*length + 1);
+    buffer[*length] = '\n';
+    *length = *length + 1;
+    if (buffer) {
+      fread(buffer, 1, *length, f);
+    }
+    fclose(f);
+  } else {
+    printf("Unable to read input file! %s\n", filename);
+    return "";
+  }
+
+  return buffer;
+}
+
 void printtype(LEX_Token tok) {
   LEX_TokenType type = tok.type;
   if (type == PLUS) {
@@ -250,198 +273,180 @@ int RPNToRes(LEX_Token *toks, int length) {
   return LEX_Pop(&stack).num;
 }
 
-int main(int argc, char *argv[]) {
-  if (argc == 2 || argc == 3) {
-    char *filename = argv[1];
+void parseBuffer(char *buffer, LEX_Token *tokens, int *length) {
 
-    char *buffer;
-    char *start = buffer;
-    long length;
-    FILE *f = fopen(filename, "rb");
+  char nume[MAX_NUM_SIZE];
+  uint8_t i = 0;
+  uint8_t flag = LEX_FLAG_DEFAULT;
 
-    if (f) {
-
-      fseek(f, 0, SEEK_END);
-      length = ftell(f);
-      fseek(f, 0, SEEK_SET);
-
-      buffer = (char *)malloc(length + 1);
-      buffer[length] = '\n';
-
-      if (buffer) {
-        fread(buffer, 1, length, f);
-      }
-      fclose(f);
-    } else {
-      printf("Unable to read input file! %s\n", filename);
-      return 1;
-    }
-    if (!buffer) {
-      printf("Got here\n");
-
-      printf("Could not open file %s", filename);
-    }
-
-    char nume[MAX_NUM_SIZE];
-    uint8_t i = 0;
-    uint8_t flag = LEX_FLAG_DEFAULT;
-
-    LEX_Token tokens[MAX_PROG_SIZE];
-    int current_token = 0;
-    LEX_Token temp_tok;
-    while (*buffer) {
-      switch (flag) {
-      case LEX_FLAG_NUM:
-        if ('0' <= *buffer && *buffer <= '9') {
-          nume[i] = *buffer;
-          i++;
-        } else {
-          int number = parseNum(nume, i);
-          temp_tok.num = number;
-          temp_tok.type = NUMBER;
-          tokens[current_token] = temp_tok;
-          current_token++;
-          flag = LEX_FLAG_DEFAULT;
-          if (*buffer == '+') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = PLUS;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          } else if (*buffer == '-') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = MINUS;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          } else if (*buffer == '*') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = MULT;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          } else if (*buffer == '/') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = DIV;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          } else if (*buffer == '(') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = LPAREN;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          } else if (*buffer == ')') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = RPAREN;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          }
-        }
-        break;
-
-      case LEX_FLAG_OP:
-        i = 0;
-        if (*buffer == ' ' || *buffer == '\n') {
-          flag = LEX_FLAG_DEFAULT;
-        } else if ('0' <= *buffer && *buffer <= '9') {
-          flag = LEX_FLAG_NUM;
-          nume[i] = *buffer;
-          i++;
-        } else {
-          if (*buffer == '+') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = PLUS;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          } else if (*buffer == '-') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = MINUS;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          } else if (*buffer == '*') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = MULT;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          } else if (*buffer == '/') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = DIV;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          } else if (*buffer == '(') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = LPAREN;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          } else if (*buffer == ')') {
-            flag = LEX_FLAG_OP;
-            temp_tok.num = -1;
-            temp_tok.type = RPAREN;
-            tokens[current_token] = temp_tok;
-            current_token++;
-          }
-        }
-        break;
-
-      case LEX_FLAG_DEFAULT:
-        i = 0;
-        if ('0' <= *buffer && *buffer <= '9') {
-          flag = LEX_FLAG_NUM;
-          nume[i] = *buffer;
-          i++;
-        } else if (*buffer == '+') {
+  // LEX_Token tokens[MAX_PROG_SIZE];
+  LEX_Token temp_tok;
+  while (*buffer) {
+    switch (flag) {
+    case LEX_FLAG_NUM:
+      if ('0' <= *buffer && *buffer <= '9') {
+        nume[i] = *buffer;
+        i++;
+      } else {
+        int number = parseNum(nume, i);
+        temp_tok.num = number;
+        temp_tok.type = NUMBER;
+        tokens[*length] = temp_tok;
+        *length = *length + 1;
+        flag = LEX_FLAG_DEFAULT;
+        if (*buffer == '+') {
           flag = LEX_FLAG_OP;
           temp_tok.num = -1;
           temp_tok.type = PLUS;
-          tokens[current_token] = temp_tok;
-          current_token++;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
         } else if (*buffer == '-') {
           flag = LEX_FLAG_OP;
           temp_tok.num = -1;
           temp_tok.type = MINUS;
-          tokens[current_token] = temp_tok;
-          current_token++;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
         } else if (*buffer == '*') {
           flag = LEX_FLAG_OP;
           temp_tok.num = -1;
           temp_tok.type = MULT;
-          tokens[current_token] = temp_tok;
-          current_token++;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
         } else if (*buffer == '/') {
           flag = LEX_FLAG_OP;
           temp_tok.num = -1;
           temp_tok.type = DIV;
-          tokens[current_token] = temp_tok;
-          current_token++;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
         } else if (*buffer == '(') {
           flag = LEX_FLAG_OP;
           temp_tok.num = -1;
           temp_tok.type = LPAREN;
-          tokens[current_token] = temp_tok;
-          current_token++;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
         } else if (*buffer == ')') {
           flag = LEX_FLAG_OP;
           temp_tok.num = -1;
           temp_tok.type = RPAREN;
-          tokens[current_token] = temp_tok;
-          current_token++;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
         }
-        break;
-
-      default:
-        printf("Unreachable\n");
-        break;
       }
+      break;
 
-      ++buffer;
+    case LEX_FLAG_OP:
+      i = 0;
+      if (*buffer == ' ' || *buffer == '\n') {
+        flag = LEX_FLAG_DEFAULT;
+      } else if ('0' <= *buffer && *buffer <= '9') {
+        flag = LEX_FLAG_NUM;
+        nume[i] = *buffer;
+        i++;
+      } else {
+        if (*buffer == '+') {
+          flag = LEX_FLAG_OP;
+          temp_tok.num = -1;
+          temp_tok.type = PLUS;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
+        } else if (*buffer == '-') {
+          flag = LEX_FLAG_OP;
+          temp_tok.num = -1;
+          temp_tok.type = MINUS;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
+        } else if (*buffer == '*') {
+          flag = LEX_FLAG_OP;
+          temp_tok.num = -1;
+          temp_tok.type = MULT;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
+        } else if (*buffer == '/') {
+          flag = LEX_FLAG_OP;
+          temp_tok.num = -1;
+          temp_tok.type = DIV;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
+        } else if (*buffer == '(') {
+          flag = LEX_FLAG_OP;
+          temp_tok.num = -1;
+          temp_tok.type = LPAREN;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
+        } else if (*buffer == ')') {
+          flag = LEX_FLAG_OP;
+          temp_tok.num = -1;
+          temp_tok.type = RPAREN;
+          tokens[*length] = temp_tok;
+          *length = *length + 1;
+        }
+      }
+      break;
+
+    case LEX_FLAG_DEFAULT:
+      i = 0;
+      if ('0' <= *buffer && *buffer <= '9') {
+        flag = LEX_FLAG_NUM;
+        nume[i] = *buffer;
+        i++;
+      } else if (*buffer == '+') {
+        flag = LEX_FLAG_OP;
+        temp_tok.num = -1;
+        temp_tok.type = PLUS;
+        tokens[*length] = temp_tok;
+        *length = *length + 1;
+      } else if (*buffer == '-') {
+        flag = LEX_FLAG_OP;
+        temp_tok.num = -1;
+        temp_tok.type = MINUS;
+        tokens[*length] = temp_tok;
+        *length = *length + 1;
+      } else if (*buffer == '*') {
+        flag = LEX_FLAG_OP;
+        temp_tok.num = -1;
+        temp_tok.type = MULT;
+        tokens[*length] = temp_tok;
+        *length = *length + 1;
+      } else if (*buffer == '/') {
+        flag = LEX_FLAG_OP;
+        temp_tok.num = -1;
+        temp_tok.type = DIV;
+        tokens[*length] = temp_tok;
+        *length = *length + 1;
+      } else if (*buffer == '(') {
+        flag = LEX_FLAG_OP;
+        temp_tok.num = -1;
+        temp_tok.type = LPAREN;
+        tokens[*length] = temp_tok;
+        *length = *length + 1;
+      } else if (*buffer == ')') {
+        flag = LEX_FLAG_OP;
+        temp_tok.num = -1;
+        temp_tok.type = RPAREN;
+        tokens[*length] = temp_tok;
+        *length = *length + 1;
+      }
+      break;
+
+    default:
+      printf("Unreachable\n");
+      break;
+    }
+
+    ++buffer;
+  }
+}
+
+int main(int argc, char *argv[]) {
+  if (argc == 2 || argc == 3) {
+    char *filename = argv[1];
+    int length;
+    char *buffer = readFile(&length, filename);
+    LEX_Token tokens[MAX_PROG_SIZE];
+    int current_token;
+    parseBuffer(buffer, tokens, &current_token);
+    if (!buffer) {
+      printf("Could not open file %s", filename);
     }
     LEX_Token rpnTokens[MAX_PROG_SIZE];
     for (size_t i = 0; i < MAX_PROG_SIZE; ++i) {
@@ -460,7 +465,7 @@ int main(int argc, char *argv[]) {
         fprintf(fout, "RESULTAT: %d\n", result);
         fprintf(fout, "-------------------------------\n");
       } else {
-        printf("Unable to find outpur file %s!\n", argv[2]);
+        printf("Unable to find output file %s!\n", argv[2]);
       }
       fclose(fout);
     } else {
