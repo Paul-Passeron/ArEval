@@ -456,6 +456,9 @@ int main(int argc, char *argv[]) {
         fprintf(fout, "-------------------------------\n");
         fprintProg(rpnTokens, length_rpn, fout);
         fprintf(fout, "-------------------------------\n");
+        int result = RPNToRes(rpnTokens, length_rpn);
+        fprintf(fout, "RESULTAT: %d\n", result);
+        fprintf(fout, "-------------------------------\n");
       } else {
         printf("Unable to find outpur file %s!\n", argv[2]);
       }
@@ -464,9 +467,9 @@ int main(int argc, char *argv[]) {
       printf("-------------------------------\n");
       printProg(rpnTokens, length_rpn);
       int result = RPNToRes(rpnTokens, length_rpn);
-      printf("RESULTAT: %d", result);
       printf("-------------------------------\n");
-      printf("%d", current_token);
+      printf("RESULTAT: %d\n", result);
+      printf("-------------------------------\n");
     }
   } else if (argc > 3) {
     printf("Too many arguments. Syntax:\n./main.bin <input file> "
